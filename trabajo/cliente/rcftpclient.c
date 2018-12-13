@@ -376,13 +376,13 @@ void print_peer(struct sockaddr_storage * caddr) {
 /**************************************************************************/
 /* Envía un mensaje a la dirección especificada */
 /**************************************************************************/
-void enviamensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servinfo ) {
+void enviamensaje(int sock, struct rcftp_msg* sendbuffer, struct addrinfo* servinfo ) {
 	ssize_t sentsize;
 	
 
-	if (sentsize=sendto(sock,(char *)&sendbuffer,sizeof(sendbuffer),0,servinfo->ai_addr, servinfo->ai_addrlen) != sizeof(sendbuffer)) {
+	if (sentsize=sendto(sock,(char *)sendbuffer,sizeof(*sendbuffer),0,servinfo->ai_addr, servinfo->ai_addrlen) != sizeof(*sendbuffer)) {
 		if (sentsize!=-1)
-			fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
+			fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(*sendbuffer));
 		else
 			perror("Error en sendto");
 		exit(0);//exit(S_SYSERROR);				S_SYSERROR NO SE DONDE ESTA 
@@ -391,7 +391,7 @@ void enviamensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servin
 	// print response if in verbose mode
 	if (verb) {
 		printf("Mensaje RCFTP enviado:\n");
-		print_rcftp_msg(&sendbuffer,sizeof(sendbuffer));
+		print_rcftp_msg(sendbuffer,sizeof(*sendbuffer));
 	} 
 }
 
@@ -399,22 +399,22 @@ void enviamensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servin
 /**************************************************************************/
 /* Recibe un mensaje a la dirección especificada */
 /**************************************************************************/
-void recibemensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servinfo ) {
+void recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) {
 	ssize_t recvsize;
 	
 
-	if (recvsize=recvfrom(sock,(char *)&sendbuffer,sizeof(sendbuffer),0,servinfo->ai_addr, &servinfo->ai_addrlen) != sizeof(sendbuffer)) {
+	if (recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),0,servinfo->ai_addr, &servinfo->ai_addrlen) != sizeof(*recvbuffer)) {
 		if (recvsize!=-1)
-			fprintf(stderr,"Error: Recibidos %d bytes de un mensaje de %d bytes\n",(int)recvsize,(int)sizeof(sendbuffer));
+			fprintf(stderr,"Error: Recibidos %d bytes de un mensaje de %d bytes\n",(int)recvsize,(int)sizeof(*recvbuffer));
 		else
 			perror("Error en recvfrom");
 		exit(0);//exit(S_SYSERROR);				S_SYSERROR NO SE DONDE ESTA 
 	} 
 
 	// print response if in verbose mode
-	if (verb) {
+	if (verb) { 
 		printf("Mensaje RCFTP recibido:\n");
-		print_rcftp_msg(&sendbuffer,sizeof(sendbuffer));
+		print_rcftp_msg(recvbuffer,sizeof(*recvbuffer));
 	} 
 }
 
@@ -429,7 +429,7 @@ int esmensajevalido(struct rcftp_msg recvbuffer) {
 		esperado=0;
 		fprintf(stderr,"Error: recibido un mensaje con versión incorrecta\n");
 	}
-
+		//esta funcion comprueba el checksum del datagrama recibido: suma longitud recibido mas contenido del campo checksum recibido (suma negada)
 	if (issumvalid(&recvbuffer,sizeof(recvbuffer))==0) { // checksum incorrecto
 		esperado=0;
 		fprintf(stderr,"Error: recibido un mensaje con checksum incorrecto\n"); /* (esperaba ");
@@ -446,8 +446,8 @@ int esmensajevalido(struct rcftp_msg recvbuffer) {
 int eslarespuestaesperada(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffer) { 
 	int esperado=1;
 	//uint16_t aux;
-
-	if (recvbuffer.next != recvbuffer.numseq + recvbuffer.len) { // next incorrecta
+		//hay que cambiar el formato a ntoh en los miembros que haya hecho hton al enviar
+	if (ntohl(recvbuffer.next) != ntohl(sendbuffer.numseq) + ntohs(sendbuffer.len)) { // next incorrecta
 		esperado=0;
 		fprintf(stderr,"Error: recibido un mensaje con next incorrecto\n");
 	}

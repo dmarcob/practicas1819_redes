@@ -60,14 +60,14 @@ void printuso(char *progname);
  * @param[out] servinfo Registro que contiene la direccion donde enviar el mensaje
  */
 
-void enviamensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servinfo );
+void enviamensaje(int sock, struct rcftp_msg* sendbuffer, struct addrinfo* servinfo );
 
 /**
  * Recibe mensaje con protocolo rcftp del servidor
  * @param[in] sendbuffer Protocolo rcftp recibido
  * @param[out] servinfo Registro que contiene la direccion donde recibir el mensaje
  */
-void recibemensaje(int sock, struct rcftp_msg sendbuffer, struct addrinfo* servinfo );
+void recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo );
 
 /**
  * Verifica version y checksum en mensaje de confirmacion

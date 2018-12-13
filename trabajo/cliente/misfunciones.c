@@ -200,19 +200,20 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 /*  algoritmo 1 (basico)  */
 /**************************************************************************/
 void alg_basico(int socket, struct addrinfo *servinfo) {
+				
 	int ultimoMensaje = 0; //inicializamos ultimo mensaje a false
 	int ultimoMensajeConfirmado = 0; //inicializamos ultimo mensaje confirmado a false
 	struct rcftp_msg sendbuffer; //mensaje con protocolo rcftp a enviar
 	struct rcftp_msg recvbuffer; //mensaje con protocolo rcftp a recibir
 	char buffer[RCFTP_BUFLEN]; 
 	int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
-	if (leido == 0) {
+	if (leido == 0) { //alcanzado fin de fichero, CTRL+d
 		ultimoMensaje = 1;
 	}	
 	
 	//OPCION1-->sendbuffer = construir(buffer,leido);
 	//OPCION2-->construirMensajeRCFTP(&sendbuffer,buffer,leido); 
-	
+	//OPCION3..>LA ACTUAL, no usar funcion
 	if (ultimoMensaje == 1){
 		
 		sendbuffer.flags=F_FIN;
@@ -227,26 +228,33 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	sendbuffer.next=htonl(0);
 	sendbuffer.sum=0;
 	strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
-	sendbuffer.sum=xsum(&sendbuffer,sizeof(sendbuffer));  
+	sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  //char* porque lee byte a byte
 	
 	                            
 	while (ultimoMensajeConfirmado == 0)  {
 		//caso en que no ha llegado confirmacion a mensaje enviado con flag FIN marcado	
-		enviamensaje(socket, sendbuffer, servinfo);  
-		recibemensaje(socket, recvbuffer, servinfo);  
+		fprintf(stderr,"ultimoMensajeConfirmado=%d",ultimoMensajeConfirmado);
+		enviamensaje(socket, &sendbuffer, servinfo);  
 	
-			if (esmensajevalido(recvbuffer) && eslarespuestaesperada(recvbuffer,sendbuffer)) {  //ME QUEDO AQUI, PROBLEM-> esmensajevalido hace mal next, mirar tambien sendbuffer.numseq=htonl(recvbuffer.next);
+		recibemensaje(socket, &recvbuffer, servinfo); 
+			//si no cumple la conicion, envia constantemente la misma peticion hasta que se cumpla la condicion
+			if (esmensajevalido(recvbuffer) && eslarespuestaesperada(recvbuffer,sendbuffer)) {
 				//caso en que confirmacion es valida
+				
 				if (ultimoMensaje == 1) {
 					//caso en que mensaje enviado estaba marcado con flag FIN y la confirmacion es correcta (tambien tiene marcada flag FIN)
-					ultimoMensajeConfirmado == 1;
+					ultimoMensajeConfirmado = 1;
+						
 				}
-				else {
+				else {		
+					
 					//caso en que mensaje enviado no tiene marcado flag FIN
 					int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
+					fprintf(stderr,"LEIDO: %d",leido);
 					if (leido == 0) {
 						//si ha leido 0Bytes, entonces ha alcanzado fin de fichero (posteriormente envio mensaje con flag FIN)
 						ultimoMensaje = 1;
+						
 					}
 					if (ultimoMensaje == 1){								//ENCAPSULAR EN UNA FUNCION
 						sendbuffer.flags=F_FIN;
@@ -254,10 +262,10 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 					else {
 						sendbuffer.flags=F_NOFLAGS;
 					}	
-						fprintf(stdout,"HOLAAA");							
+							
 					//construir el mensaje válido ***********************************
 					sendbuffer.version= RCFTP_VERSION_1;
-					sendbuffer.numseq=htonl(recvbuffer.next);
+					sendbuffer.numseq=htonl(ntohl(recvbuffer.next));
 					sendbuffer.len=htons(leido);
 					sendbuffer.next=htonl(0);
 					sendbuffer.sum=0;
@@ -267,7 +275,7 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 				}
 			}
 	}
-	
+	fprintf(stderr,"fueaaaaa");
 }
 
 /**************************************************************************/
