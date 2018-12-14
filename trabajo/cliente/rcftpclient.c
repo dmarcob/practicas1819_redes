@@ -399,11 +399,11 @@ void enviamensaje(int sock, struct rcftp_msg* sendbuffer, struct addrinfo* servi
 /**************************************************************************/
 /* Recibe un mensaje a la dirección especificada */
 /**************************************************************************/
-void recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) {
+int recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) {
 	ssize_t recvsize;
 	
 
-	if (recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),0,servinfo->ai_addr, &servinfo->ai_addrlen) != sizeof(*recvbuffer)) {
+	if ((recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),0,servinfo->ai_addr, &servinfo->ai_addrlen)) != sizeof(*recvbuffer)) {
 		if (recvsize!=-1)
 			fprintf(stderr,"Error: Recibidos %d bytes de un mensaje de %d bytes\n",(int)recvsize,(int)sizeof(*recvbuffer));
 		else
@@ -415,7 +415,10 @@ void recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* serv
 	if (verb) { 
 		printf("Mensaje RCFTP recibido:\n");
 		print_rcftp_msg(recvbuffer,sizeof(*recvbuffer));
-	} 
+	}
+	
+	return recvsize; 
+	
 }
 
 /**************************************************************************/

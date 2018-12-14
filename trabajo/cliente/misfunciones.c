@@ -233,7 +233,6 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	                            
 	while (ultimoMensajeConfirmado == 0)  {
 		//caso en que no ha llegado confirmacion a mensaje enviado con flag FIN marcado	
-		fprintf(stderr,"ultimoMensajeConfirmado=%d",ultimoMensajeConfirmado);
 		enviamensaje(socket, &sendbuffer, servinfo);  
 	
 		recibemensaje(socket, &recvbuffer, servinfo); 
@@ -250,7 +249,6 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 					
 					//caso en que mensaje enviado no tiene marcado flag FIN
 					int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
-					fprintf(stderr,"LEIDO: %d",leido);
 					if (leido == 0) {
 						//si ha leido 0Bytes, entonces ha alcanzado fin de fichero (posteriormente envio mensaje con flag FIN)
 						ultimoMensaje = 1;
@@ -275,38 +273,111 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 				}
 			}
 	}
-	fprintf(stderr,"fueaaaaa");
+	
 }
 
 /**************************************************************************/
-/*  algoritmo 2 (stop & wait)  */
+/*  algoritmo 2 (stop & wait)  */													//NO ESTAN TRATADOS LOS MENSAJES REPLICADOS RECIBIDOS
 /**************************************************************************/
 void alg_stopwait(int socket, struct addrinfo *servinfo) {
-	/*int timeouts_procesados = 0;
-        addtimeout();
-        int esperar = 1;
-        struct rcftp_msg sendbuffer;
-        construirMensajeRCFTP(sendbuffer,vector,leido);
-        struct rcftp_msg recvbuffer;
-        while(esperar){
-            ssize_t numDatosRecibidos = recibirmensaje(socket,&recvbuffer,sizeof(recvbuffer),&remote,sizeof(&remote));
-            if(numDatosRecibidos > 0){
-                canceltimeout();
-                esperar = 0;
-            }
-            if(timeouts_vencidos != timeouts_procesados){
-                esperar = 0;
-                timeouts_procesados = timeouts_procesados + 1;
-            }
-        }
-	printf("Comunicación con algoritmo stop&wait\n");
-*/
-
-	printf("Comunicación con algoritmo stop&wait\n");
-
-#warning FALTA IMPLEMENTAR EL ALGORITMO STOP-WAIT
-	printf("Algoritmo no implementado\n");
+	signal(14,handle_sigalrm); //Capturo la señal SIGALARM y cambio su comportamiento por defecto por la funcion handle_sigalarm
+	int espera = 1; //inicializo esperar a true para que entre en el bucle del timeout
+	int numDatosRecibidos;
+	int timeouts_procesados = 0;
+	int ultimoMensaje = 0; //inicializamos ultimo mensaje a false
+	int ultimoMensajeConfirmado = 0; //inicializamos ultimo mensaje confirmado a false
+	struct rcftp_msg sendbuffer; //mensaje con protocolo rcftp a enviar
+	struct rcftp_msg recvbuffer; //mensaje con protocolo rcftp a recibir
+	char buffer[RCFTP_BUFLEN]; 
+	int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
+	if (leido == 0) { //alcanzado fin de fichero, CTRL+d
+		ultimoMensaje = 1;
+	}	
+	
+	//OPCION1-->sendbuffer = construir(buffer,leido);
+	//OPCION2-->construirMensajeRCFTP(&sendbuffer,buffer,leido); 
+	//OPCION3..>LA ACTUAL, no usar funcion
+	if (ultimoMensaje == 1){
+		
+		sendbuffer.flags=F_FIN;
+	}	
+	else {
+		sendbuffer.flags=F_NOFLAGS;
+	}													//ENCAPSULAR EN UNA FUNCION
+	//construir el mensaje válido ***********************************
+	sendbuffer.version= RCFTP_VERSION_1;
+	sendbuffer.numseq=htonl(0);
+	sendbuffer.len=htons(leido);
+	sendbuffer.next=htonl(0);
+	sendbuffer.sum=0;
+	strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
+	sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  //char* porque lee byte a byte
+	
+	                            
+	while (ultimoMensajeConfirmado == 0)  {
+		//caso en que no ha llegado confirmacion a mensaje enviado con flag FIN marcado	
+		enviamensaje(socket, &sendbuffer, servinfo);  
+		espera = 1;
+		addtimeout();
+		while (espera) {
+			numDatosRecibidos = recibemensaje(socket, &recvbuffer, servinfo); 
+			if (numDatosRecibidos > 0) {
+				//caso en que ha recibido algo, cancelamos el time out
+				canceltimeout();
+				espera = 0;
+				
+			}
+			
+			if (timeouts_procesados != timeouts_vencidos) { 
+				//Caso en que no ha recibido nada y y ha vencido el time out (timeouts_vencidos sera igual a 1 (va incrementando en uno cada vez)
+				espera = 0;
+				timeouts_procesados += 1;
+				fprintf(stderr,"TIMEOUT VENCIDO");
+			}
+		}
+		 if (numDatosRecibidos > 0 ) { //si ha recibido algo, entra a comprobarlo
+			 
+			//si no cumple la conicion, envia constantemente la misma peticion hasta que se cumpla la condicion
+			if (esmensajevalido(recvbuffer) && eslarespuestaesperada(recvbuffer,sendbuffer)) {
+				//caso en que confirmacion es valida
+				
+				if (ultimoMensaje == 1) {
+					//caso en que mensaje enviado estaba marcado con flag FIN y la confirmacion es correcta (tambien tiene marcada flag FIN)
+					ultimoMensajeConfirmado = 1;
+						
+				}
+				else {		
+					
+					//caso en que mensaje enviado no tiene marcado flag FIN
+					int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
+					if (leido == 0) {
+						//si ha leido 0Bytes, entonces ha alcanzado fin de fichero (posteriormente envio mensaje con flag FIN)
+						ultimoMensaje = 1;
+						
+					}
+					if (ultimoMensaje == 1){								//ENCAPSULAR EN UNA FUNCION
+						sendbuffer.flags=F_FIN;
+					}	
+					else {
+						sendbuffer.flags=F_NOFLAGS;
+					}	
+							
+					//construir el mensaje válido ***********************************
+					sendbuffer.version= RCFTP_VERSION_1;
+					sendbuffer.numseq=htonl(ntohl(recvbuffer.next));
+					sendbuffer.len=htons(leido);
+					sendbuffer.next=htonl(0);
+					sendbuffer.sum=0;
+					strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
+					sendbuffer.sum=xsum(&sendbuffer,sizeof(sendbuffer));  
+			 
+				}
+			}
+		 }
+	}
+	
 }
+
 
 /**************************************************************************/
 /*  algoritmo 3 (ventana deslizante)  */
