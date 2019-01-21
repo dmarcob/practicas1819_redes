@@ -22,17 +22,18 @@
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
+#include <signal.h>
 #include <math.h>
 #include "rcftp.h" // Protocolo RCFTP
 #include "rcftpclient.h" // Funciones ya implementadas
 #include "multialarm.h" // Gestión de timeouts
 #include "vemision.h" // Gestión de ventana de emisión
 #include "misfunciones.h"
+#include <signal.h>
 
 /**************************************************************************/
 /* VARIABLES GLOBALES                                                     */
 /**************************************************************************/
-#warning HAY QUE PONER EL NOMBRE (Y BORRAR EL WARNING)
 // elegir 1 o 2 autores y sustituir "Apellidos, Nombre" manteniendo el formato
 char* autores="Autor: Marcuello Baquero, Victor\nAutor: Marco Beisty, Diego"; // un solo autor
 //char* autores="Autor: Apellidos, Nombre\nAutor: Apellidos, Nombre" // dos autores
@@ -197,7 +198,7 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 
 
 /**************************************************************************/
-/*  algoritmo 1 (basico)  */
+/*  algoritmo 1 (basico)  */												//NO COINCIDEN LOS FICHEROS 
 /**************************************************************************/
 void alg_basico(int socket, struct addrinfo *servinfo) {
 				
@@ -207,10 +208,9 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	struct rcftp_msg recvbuffer; //mensaje con protocolo rcftp a recibir
 	char buffer[RCFTP_BUFLEN]; 
 	int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
-	if (leido == 0) { //alcanzado fin de fichero, CTRL+d
-		ultimoMensaje = 1;
+	if (leido < 512) { //alcanzado fin de fichero, CTRL+d
+		ultimoMensaje = 1; 
 	}	
-	
 	//OPCION1-->sendbuffer = construir(buffer,leido);
 	//OPCION2-->construirMensajeRCFTP(&sendbuffer,buffer,leido); 
 	//OPCION3..>LA ACTUAL, no usar funcion
@@ -227,8 +227,10 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	sendbuffer.len=htons(leido);
 	sendbuffer.next=htonl(0);
 	sendbuffer.sum=0;
-	strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
+	memcpy(sendbuffer.buffer,buffer,leido);			//COPIA por desgracia TAMBIÉN EL \n
 	sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  //char* porque lee byte a byte
+	
+
 	
 	                            
 	while (ultimoMensajeConfirmado == 0)  {
@@ -249,7 +251,7 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 					
 					//caso en que mensaje enviado no tiene marcado flag FIN
 					int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
-					if (leido == 0) {
+					if (leido < 512) {
 						//si ha leido 0Bytes, entonces ha alcanzado fin de fichero (posteriormente envio mensaje con flag FIN)
 						ultimoMensaje = 1;
 						
@@ -267,8 +269,8 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 					sendbuffer.len=htons(leido);
 					sendbuffer.next=htonl(0);
 					sendbuffer.sum=0;
-					strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
-					sendbuffer.sum=xsum(&sendbuffer,sizeof(sendbuffer));  
+					memcpy(sendbuffer.buffer,buffer,leido); 		//COPIA por desgracia TAMBIÉN EL \n
+					sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  
 			 
 				}
 			}
@@ -278,9 +280,17 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 
 /**************************************************************************/
 /*  algoritmo 2 (stop & wait)  */													//NO ESTAN TRATADOS LOS MENSAJES REPLICADOS RECIBIDOS
+																					//AL SALIR DEL BLOQUEO DE RECVFROM, SE BLOQUEA EL PROGRAMA
 /**************************************************************************/
 void alg_stopwait(int socket, struct addrinfo *servinfo) {
+	//int sockflags;
+	//sockflags = fcntl (socket,F_GETFL,0);   		 //socket no bloqueante
+	//fcntl (socket, F_SETFL, sockflags | O_NONBLOCK); //socket no bloqueante
 	signal(14,handle_sigalrm); //Capturo la señal SIGALARM y cambio su comportamiento por defecto por la funcion handle_sigalarm
+	
+	int sockflags;
+	//sockflags = fcntl (socket, F_GETFL, 0);
+	//fcntl(socket, F_SETFL, sockflags | O_NONBLOCK);
 	int espera = 1; //inicializo esperar a true para que entre en el bucle del timeout
 	int numDatosRecibidos;
 	int timeouts_procesados = 0;
@@ -292,15 +302,12 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 	int leido = readtobuffer(buffer,RCFTP_BUFLEN); //leido = bytes escritos en teclado
 	if (leido == 0) { //alcanzado fin de fichero, CTRL+d
 		ultimoMensaje = 1;
+		sendbuffer.flags=F_FIN;
 	}	
 	
 	//OPCION1-->sendbuffer = construir(buffer,leido);
 	//OPCION2-->construirMensajeRCFTP(&sendbuffer,buffer,leido); 
-	//OPCION3..>LA ACTUAL, no usar funcion
-	if (ultimoMensaje == 1){
-		
-		sendbuffer.flags=F_FIN;
-	}	
+	//OPCION3..>LA ACTUAL, no usar funcion	
 	else {
 		sendbuffer.flags=F_NOFLAGS;
 	}													//ENCAPSULAR EN UNA FUNCION
@@ -310,20 +317,21 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 	sendbuffer.len=htons(leido);
 	sendbuffer.next=htonl(0);
 	sendbuffer.sum=0;
-	strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
+	memcpy(sendbuffer.buffer,buffer, leido);			//COPIA por desgracia TAMBIÉN EL \n
 	sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  //char* porque lee byte a byte
 	
-	                            
+	           
 	while (ultimoMensajeConfirmado == 0)  {
 		//caso en que no ha llegado confirmacion a mensaje enviado con flag FIN marcado	
 		enviamensaje(socket, &sendbuffer, servinfo);  
 		espera = 1;
-		addtimeout();
+		//addtimeout();
 		while (espera) {
 			numDatosRecibidos = recibemensaje(socket, &recvbuffer, servinfo); 
+		    fprintf(stderr,"holaaaa");
 			if (numDatosRecibidos > 0) {
 				//caso en que ha recibido algo, cancelamos el time out
-				canceltimeout();
+			//	canceltimeout();
 				espera = 0;
 				
 			}
@@ -334,6 +342,7 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 				timeouts_procesados += 1;
 				fprintf(stderr,"TIMEOUT VENCIDO");
 			}
+			fprintf(stderr,"no entraa");
 		}
 		 if (numDatosRecibidos > 0 ) { //si ha recibido algo, entra a comprobarlo
 			 
@@ -368,8 +377,8 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 					sendbuffer.len=htons(leido);
 					sendbuffer.next=htonl(0);
 					sendbuffer.sum=0;
-					strcpy(sendbuffer.buffer,buffer);			//COPIA por desgracia TAMBIÉN EL \n
-					sendbuffer.sum=xsum(&sendbuffer,sizeof(sendbuffer));  
+					memcpy(sendbuffer.buffer,buffer, leido);			//COPIA por desgracia TAMBIÉN EL \n
+					sendbuffer.sum=xsum((char*)&sendbuffer,sizeof(sendbuffer));  
 			 
 				}
 			}

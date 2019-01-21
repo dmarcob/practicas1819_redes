@@ -422,6 +422,31 @@ int recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servi
 }
 
 /**************************************************************************/
+/* Recibe un mensaje a la dirección especificada, SOCKET NO BLOQUEANTE*/
+/**************************************************************************/
+int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) {
+	ssize_t recvsize;
+	
+
+	if ((recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),MSG_DONTWAIT,servinfo->ai_addr, &servinfo->ai_addrlen)) != sizeof(*recvbuffer)) {
+		if (recvsize!=-1)
+			fprintf(stderr,"Error: Recibidos %d bytes de un mensaje de %d bytes\n",(int)recvsize,(int)sizeof(*recvbuffer));
+		else
+			perror("Error en recvfrom");
+		exit(0);//exit(S_SYSERROR);				S_SYSERROR NO SE DONDE ESTA 
+	} 
+
+	// print response if in verbose mode
+	if (verb) { 
+		printf("Mensaje RCFTP recibido:\n");
+		print_rcftp_msg(recvbuffer,sizeof(*recvbuffer));
+	}
+	
+	return recvsize; 
+	
+}
+
+/**************************************************************************/
 /* Verifica version,checksum */
 /**************************************************************************/
 int esmensajevalido(struct rcftp_msg recvbuffer) { 

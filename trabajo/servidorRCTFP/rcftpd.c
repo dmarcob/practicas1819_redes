@@ -481,7 +481,6 @@ uint32_t calcnextexpected(uint32_t oldexpected, uint32_t numseq, uint16_t len,
 	size_t wrsize;
 	uint16_t firstbyte,bytestowrite;
 	uint32_t nextexpected=oldexpected;
-
 	if (len>RCFTP_BUFLEN) {
 		fprintf(stderr,"Recibido mensaje informando de longitud %d>%d\n",len,RCFTP_BUFLEN);
 		exit(S_CLIERROR);

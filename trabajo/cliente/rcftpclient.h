@@ -84,3 +84,4 @@ int esmensajevalido(struct rcftp_msg recvbuffer);
 int eslarespuestaesperada(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffer);
 
 
+int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) ;

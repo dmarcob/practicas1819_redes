@@ -68,6 +68,7 @@ void handle_sigalrm(int sig) {
 	timeouts_vencidos++;
 	signal(SIGALRM,handle_sigalrm);
 	canceltimeout();
+	fprintf(stderr,"ALARMAA");
 	/* Lo recomendable sería llamar a setnextalarm() desde el programa principal, al detectar un timeout vencido, pero por legibilidad lo situamos aquí */
 }
 
