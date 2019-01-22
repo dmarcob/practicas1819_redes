@@ -51,6 +51,10 @@ void setwindowsize(unsigned int total);
  */
 int getfreespace();
 
+/*AÑADIDO POR MII*/
+int comprobarNext(uint32_t next);
+
+
 /**
  * Añade datos de longitud len a la ventana de emisión
  * @param[in] datos a añadir

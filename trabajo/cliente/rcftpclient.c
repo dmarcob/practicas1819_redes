@@ -392,9 +392,9 @@ void enviamensaje(int sock, struct rcftp_msg* sendbuffer, struct addrinfo* servi
 	if (verb) {
 		printf("Mensaje RCFTP enviado:\n");
 		print_rcftp_msg(sendbuffer,sizeof(*sendbuffer));
+			
 	} 
 }
-
 
 /**************************************************************************/
 /* Recibe un mensaje a la dirección especificada */
@@ -421,25 +421,32 @@ int recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servi
 	
 }
 
+
 /**************************************************************************/
-/* Recibe un mensaje a la dirección especificada, SOCKET NO BLOQUEANTE*/
+/* Recibe un mensaje a la dirección especificada SOCKET NO BLOQUEANTE */
 /**************************************************************************/
 int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) {
 	ssize_t recvsize;
 	
 
-	if ((recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),MSG_DONTWAIT,servinfo->ai_addr, &servinfo->ai_addrlen)) != sizeof(*recvbuffer)) {
+	if ((recvsize=recvfrom(sock,(char *)recvbuffer,sizeof(*recvbuffer),0,servinfo->ai_addr, &servinfo->ai_addrlen)) != sizeof(*recvbuffer)) {
 		if (recvsize!=-1)
 			fprintf(stderr,"Error: Recibidos %d bytes de un mensaje de %d bytes\n",(int)recvsize,(int)sizeof(*recvbuffer));
-		else
+		//incluyo esto
+		else if (errno == EAGAIN){ //EN gnu/linux poner EINTR
+		// fprintf(stderr,"socket no bloqueante");
+		}
+		//termino de incluir
+		else{
 			perror("Error en recvfrom");
 		exit(0);//exit(S_SYSERROR);				S_SYSERROR NO SE DONDE ESTA 
+		}
 	} 
 
 	// print response if in verbose mode
 	if (verb) { 
-		printf("Mensaje RCFTP recibido:\n");
-		print_rcftp_msg(recvbuffer,sizeof(*recvbuffer));
+		//printf("Mensaje RCFTP recibido:\n");
+		//print_rcftp_msg(recvbuffer,sizeof(*recvbuffer));
 	}
 	
 	return recvsize; 
@@ -487,6 +494,28 @@ int eslarespuestaesperada(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffe
 	if (sendbuffer.flags == 2 && recvbuffer.flags != 2) { // flag respuesta no tiene marcado fin y mensaje enviado si lo tiene
 		esperado=0;
 		fprintf(stderr,"Error: recibido un mensaje sin flag fin marcado, habiendo enviado mensaje con flag fin marcado\n");
+	}
+	return esperado;
+}
+
+
+/**************************************************************************/
+/* Verifica  flags en el algoritmo3*/
+/**************************************************************************/
+int eslarespuestaesperada2(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffer,int ultimoMensaje) { 
+	int esperado=1;
+	//uint16_t aux;
+		//hay que cambiar el formato a ntoh en los miembros que haya hecho hton al enviar
+
+
+	if (recvbuffer.flags == 1 || recvbuffer.flags == 4) { // flags ocupado/abortar
+		esperado=0;
+		fprintf(stderr,"Error: recibido un mensaje con flag ocupado o abortar\n");
+		exit(0);
+	}
+	if (ultimoMensaje = 0 && recvbuffer.flags == 2) { // flag respuesta no tiene marcado fin y mensaje enviado si lo tiene
+		esperado=0;
+		fprintf(stderr,"Error: recibido un mensaje con flag fin marcado, sin haber mandado el ultimo mensaje\n");
 	}
 	return esperado;
 }

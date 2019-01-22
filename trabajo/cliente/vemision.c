@@ -107,6 +107,15 @@ void freewindow(uint32_t next) {
 		return;
 	}
 }
+/*AÑADIDO POR MII*/
+int comprobarNext(uint32_t next) {
+    int correcto = 1;
+	if (((next<=numseqfirst) && (numseqfirst<(uint32_t)(numseqfirst+totalelems-getfreespace()))) // next menor
+			|| (next>(uint32_t)(numseqfirst+totalelems-getfreespace()))) { // next mayor
+		correcto = 0;
+	}
+	return correcto;
+}
 			
 
 uint32_t getdatatoresend(char * buffer, int * len) {

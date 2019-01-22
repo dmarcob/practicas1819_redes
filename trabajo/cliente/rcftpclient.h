@@ -69,6 +69,8 @@ void enviamensaje(int sock, struct rcftp_msg* sendbuffer, struct addrinfo* servi
  */
 int recibemensaje(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo );
 
+int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo );
+
 /**
  * Verifica version y checksum en mensaje de confirmacion
  * @param[in] recvbuffer Protocolo rcftp recibido
@@ -84,4 +86,10 @@ int esmensajevalido(struct rcftp_msg recvbuffer);
 int eslarespuestaesperada(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffer);
 
 
-int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo ) ;
+int recibemensaje2(int sock, struct rcftp_msg* recvbuffer, struct addrinfo* servinfo) ;
+
+
+int eslarespuestaesperada2(struct rcftp_msg recvbuffer,struct rcftp_msg sendbuffer,int ultimoMensaje);
+
+
+
